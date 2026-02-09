@@ -48,7 +48,7 @@ export const BusProvider = ({ children }) => {
         addAlert("Bus trip paused", "warning");
     };
 
-    const toogleSOS = () => {
+    const toggleSOS = () => {
         const isSOS = busStatus === "SOS";
         if (isSOS) {
             setBusStatus(isSharing ? "Moving" : "Stopped");
@@ -77,7 +77,7 @@ export const BusProvider = ({ children }) => {
             alerts,
             startTrip,
             stopTrip,
-            toogleSOS,
+            toggleSOS,
             addAlert
         }}>
             {children}

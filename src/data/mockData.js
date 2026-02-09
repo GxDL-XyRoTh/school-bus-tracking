@@ -9,15 +9,7 @@ export const BUS_ROUTE = [
   { lat: 19.0810, lng: 72.8827 },
   { lat: 19.0820, lng: 72.8837, label: "Bus Stop B" },
   { lat: 19.0830, lng: 72.8847 },
-  { lat: 19.0840, lng: 72.8857, label: "Student Home" }, // Destination for this demo
-  { lat: 19.0830, lng: 72.8847 },
-  { lat: 19.0820, lng: 72.8837 },
-  { lat: 19.0810, lng: 72.8827 },
-  { lat: 19.0800, lng: 72.8817 },
-  { lat: 19.0790, lng: 72.8807 },
-  { lat: 19.0780, lng: 72.8797 },
-  { lat: 19.0770, lng: 72.8787 },
-  { lat: 19.0760, lng: 72.8777 },
+  { lat: 19.0840, lng: 72.8857, label: "Student Home" }, // Final Destination
 ];
 
 export const USERS = {

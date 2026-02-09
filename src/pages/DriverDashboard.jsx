@@ -1,59 +1,97 @@
 import { useAuth } from '../context/AuthContext';
 import { useBus } from '../context/BusContext';
 import Button from '../components/Button';
-import { Play, Pause, AlertTriangle } from 'lucide-react';
+import Card from '../components/Card';
+import { Play, Pause, AlertTriangle, Bus, MapPin, Clock, Radio } from 'lucide-react';
 
 export default function DriverDashboard() {
     const { user } = useAuth();
-    const { isSharing, startTrip, stopTrip, toogleSOS, busStatus } = useBus();
+    const { isSharing, startTrip, stopTrip, toggleSOS, busStatus, currentLocation } = useBus();
+
+    const getStatusConfig = () => {
+        if (busStatus === 'SOS') return { color: 'danger', label: 'EMERGENCY', pulse: true };
+        if (busStatus === 'Moving') return { color: 'success', label: 'EN ROUTE', pulse: true };
+        if (busStatus === 'Reached School') return { color: 'primary', label: 'ARRIVED', pulse: false };
+        return { color: 'warning', label: 'STANDBY', pulse: false };
+    };
+
+    const status = getStatusConfig();
 
     return (
-        <div className="responsive-container flex flex-col items-center gap-8 py-4">
-            <div className="text-center w-full">
-                <h2 className="text-2xl font-bold mb-2 text-slate-800">Driver Console</h2>
-                <p className="text-slate-600 mb-4">Bus: <strong className="text-slate-800">{user?.busNumber}</strong></p>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-100">
-                    <span className="text-slate-500 font-medium text-sm">Status:</span>
-                    <span className={`font-bold ${busStatus === 'Moving' ? 'text-success' : busStatus === 'SOS' ? 'text-danger' : 'text-warning'}`}>
-                        {busStatus}
-                    </span>
+        <div className="driver-dashboard">
+            {/* Header Card */}
+            <Card className="driver-header-card">
+                <div className="driver-header-content">
+                    <div className="driver-bus-icon">
+                        <Bus size={32} />
+                    </div>
+                    <div className="driver-info">
+                        <h2 className="driver-title">Driver Console</h2>
+                        <p className="driver-bus-number">{user?.busNumber || 'MH-02-1234'}</p>
+                    </div>
+                    <div className={`driver-status-badge status-${status.color} ${status.pulse ? 'pulse' : ''}`}>
+                        <Radio size={14} />
+                        <span>{status.label}</span>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Live Info Strip */}
+            <div className="driver-info-strip">
+                <div className="info-item">
+                    <MapPin size={16} />
+                    <span>{currentLocation?.label || 'School'}</span>
+                </div>
+                <div className="info-item">
+                    <Clock size={16} />
+                    <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
             </div>
 
-            <div className="w-full flex justify-center py-4">
-                {/* Big Toggle Button */}
-                {!isSharing ? (
-                    <button
-                        onClick={startTrip}
-                        className="trip-btn trip-btn-start"
-                        aria-label="Start Trip"
-                    >
-                        <Play size={48} className="text-white ml-2" />
-                        <span className="text-white text-xl font-bold mt-2">START TRIP</span>
-                    </button>
-                ) : (
-                    <button
-                        onClick={stopTrip}
-                        className="trip-btn trip-btn-stop"
-                        aria-label="Stop Trip"
-                    >
-                        <Pause size={48} className="text-white" />
-                        <span className="text-white text-xl font-bold mt-2">STOP TRIP</span>
-                    </button>
-                )}
+            {/* Main Action Button */}
+            <div className="driver-action-container">
+                <div className="action-ring">
+                    {!isSharing ? (
+                        <button
+                            onClick={startTrip}
+                            className="trip-btn trip-btn-start"
+                            aria-label="Start Trip"
+                        >
+                            <div className="trip-btn-inner">
+                                <Play className="trip-icon" />
+                                <span className="trip-label">START TRIP</span>
+                            </div>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={stopTrip}
+                            className="trip-btn trip-btn-stop"
+                            aria-label="Stop Trip"
+                        >
+                            <div className="trip-btn-inner">
+                                <Pause className="trip-icon" />
+                                <span className="trip-label">STOP TRIP</span>
+                            </div>
+                        </button>
+                    )}
+                </div>
+                <p className="action-hint">
+                    {isSharing ? 'Tap to pause your trip' : 'Tap to begin sharing your location'}
+                </p>
             </div>
 
-            <div className="w-full max-w-sm">
+            {/* SOS Button */}
+            <div className="driver-sos-container">
                 <Button
                     variant="danger"
-                    className="w-full py-4 text-lg font-bold shadow-lg shadow-red-500/20 hover:shadow-red-500/40 rounded-2xl h-16 flex items-center justify-center gap-3 transition-all transform active:scale-95"
-                    onClick={toogleSOS}
+                    className={`sos-button ${busStatus === 'SOS' ? 'sos-active' : ''}`}
+                    onClick={toggleSOS}
                 >
-                    <AlertTriangle size={24} />
-                    {busStatus === 'SOS' ? 'CANCEL SOS ALERT' : 'SEND EMERGENCY SOS'}
+                    <AlertTriangle size={22} />
+                    <span>{busStatus === 'SOS' ? 'CANCEL SOS' : 'EMERGENCY SOS'}</span>
                 </Button>
-                <p className="text-center text-xs text-slate-400 mt-3">
-                    Sends instant alert to School Admin and Parents
+                <p className="sos-hint">
+                    Instantly alerts school admin and all parents
                 </p>
             </div>
         </div>

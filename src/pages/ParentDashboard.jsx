@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { useBus } from '../context/BusContext';
+import { useNavigate } from 'react-router-dom';
 import Map from '../components/Map';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -9,6 +10,7 @@ import { useState } from 'react';
 export default function ParentDashboard() {
     const { user } = useAuth();
     const { currentLocation, busStatus, alerts } = useBus();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('tracking'); // tracking, payments, complaints
 
     // Helper for Status Color
@@ -98,7 +100,7 @@ export default function ParentDashboard() {
                             </div>
                             <div className="text-center-mobile text-right-sm">
                                 <p className="font-bold text-2xl mb-2 text-slate-800">$50.00</p>
-                                <Button variant="primary" className="btn-sm btn-mobile-full">Pay Now</Button>
+                                <Button variant="primary" className="btn-sm btn-mobile-full" onClick={() => navigate('/payment')}>Pay Now</Button>
                             </div>
                         </div>
 
@@ -126,27 +128,27 @@ export default function ParentDashboard() {
                 <div className="responsive-container">
                     <Card>
                         <h3 className="font-bold mb-6 flex items-center gap-2 text-xl border-b pb-4"><MessageSquare className="text-primary" /> Submit Complaint</h3>
-                        <div className="flex-col gap-6">
-                            <div className="flex-col gap-2">
+                        <div className="complaint-form">
+                            <div className="form-group">
                                 <label className="text-sm font-medium text-slate-700">Category</label>
-                                <div className="relative">
-                                    <select className="w-full p-3 border border-slate-200 rounded-lg bg-white appearance-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all">
+                                <div className="select-wrapper">
+                                    <select>
                                         <option>Bus Delay</option>
                                         <option>Driver Behavior</option>
                                         <option>Vehicle Condition</option>
                                         <option>Other</option>
                                     </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">▼</div>
+                                    <span className="select-arrow">▼</span>
                                 </div>
                             </div>
-                            <div className="flex-col gap-2">
+                            <div className="form-group">
                                 <label className="text-sm font-medium text-slate-700">Description</label>
                                 <textarea
                                     className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-y min-h-[120px]"
                                     placeholder="Describe your issue..."
                                 ></textarea>
                             </div>
-                            <Button variant="primary" className="py-3 mt-2">Submit Complaint</Button>
+                            <Button variant="primary" className="w-full py-3">Submit Complaint</Button>
                         </div>
                     </Card>
                 </div>

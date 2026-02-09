@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import ParentDashboard from './pages/ParentDashboard';
 import DriverDashboard from './pages/DriverDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import PaymentGateway from './pages/PaymentGateway';
 import Layout from './components/Layout';
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
               <Route path="/parent/*" element={<ParentDashboard />} />
               <Route path="/driver/*" element={<DriverDashboard />} />
               <Route path="/admin/*" element={<AdminDashboard />} />
+              <Route path="/payment" element={<PaymentGateway />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </Layout>
