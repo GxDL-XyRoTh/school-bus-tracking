@@ -1,88 +1,80 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { ref, set, onValue } from 'firebase/database';
+import { db } from '../firebase';
 import { BUS_ROUTE, INITIAL_ALERTS } from '../data/mockData';
 
 const BusContext = createContext();
 
-// LocalStorage key for cross-tab sync
-const SYNC_KEY = 'bus_tracker_sync';
+// Firebase path
+const BUS_REF = 'bus/status';
 
 export const BusProvider = ({ children }) => {
     const [isSharing, setIsSharing] = useState(false);
     const [currentLocation, setCurrentLocation] = useState(BUS_ROUTE[0]);
     const [alerts, setAlerts] = useState(INITIAL_ALERTS);
-    const [busStatus, setBusStatus] = useState("Stopped"); // Stopped, Moving, Reached, SOS
+    const [busStatus, setBusStatus] = useState("Stopped");
 
-    // GPS Location Sharing
     const [locationPermission, setLocationPermission] = useState("pending");
     const watchIdRef = useRef(null);
     const routeIndexRef = useRef(0);
-    const isDriverRef = useRef(false); // Track if this tab is the driver
+    const isDriverRef = useRef(false);
 
-    // Broadcast state to other tabs via localStorage
-    const broadcastState = useCallback((state) => {
+    // Write state to Firebase (Driver only)
+    const syncToFirebase = useCallback((data) => {
         try {
-            localStorage.setItem(SYNC_KEY, JSON.stringify({
-                ...state,
-                timestamp: Date.now()
-            }));
+            const busRef = ref(db, BUS_REF);
+            set(busRef, {
+                isSharing: data.isSharing,
+                busStatus: data.busStatus,
+                currentLocation: data.currentLocation,
+                lastUpdated: Date.now()
+            });
         } catch (e) {
-            console.error('Failed to broadcast state:', e);
+            console.error('Firebase write error:', e);
         }
     }, []);
 
-    // Listen for changes from other tabs
-    useEffect(() => {
-        const handleStorageChange = (e) => {
-            if (e.key !== SYNC_KEY || !e.newValue) return;
-
-            // Only non-driver tabs should listen for updates
-            if (isDriverRef.current) return;
-
-            try {
-                const syncedState = JSON.parse(e.newValue);
-
-                // Update local state from synced data
-                if (syncedState.isSharing !== undefined) {
-                    setIsSharing(syncedState.isSharing);
-                }
-                if (syncedState.busStatus !== undefined) {
-                    setBusStatus(syncedState.busStatus);
-                }
-                if (syncedState.currentLocation !== undefined) {
-                    setCurrentLocation(syncedState.currentLocation);
-                }
-                if (syncedState.alerts !== undefined) {
-                    setAlerts(syncedState.alerts);
-                }
-            } catch (e) {
-                console.error('Failed to parse synced state:', e);
-            }
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-
-        // On mount, load existing state from localStorage
+    // Write alerts separately
+    const syncAlertsToFirebase = useCallback((alertsList) => {
         try {
-            const existingState = localStorage.getItem(SYNC_KEY);
-            if (existingState) {
-                const syncedState = JSON.parse(existingState);
-                // Only apply if recent (within last 5 minutes)
-                if (Date.now() - syncedState.timestamp < 5 * 60 * 1000) {
-                    if (syncedState.isSharing !== undefined) setIsSharing(syncedState.isSharing);
-                    if (syncedState.busStatus !== undefined) setBusStatus(syncedState.busStatus);
-                    if (syncedState.currentLocation !== undefined) setCurrentLocation(syncedState.currentLocation);
-                }
-            }
+            const alertsRef = ref(db, 'bus/alerts');
+            // Only keep last 20 alerts to avoid bloat
+            set(alertsRef, alertsList.slice(0, 20));
         } catch (e) {
-            console.error('Failed to load initial state:', e);
+            console.error('Firebase alerts write error:', e);
         }
+    }, []);
+
+    // Listen to Firebase for real-time updates (Parent/Admin)
+    useEffect(() => {
+        // Listen for bus status changes
+        const busRef = ref(db, BUS_REF);
+        const unsubStatus = onValue(busRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data || isDriverRef.current) return;
+
+            setIsSharing(data.isSharing ?? false);
+            setBusStatus(data.busStatus ?? "Stopped");
+            if (data.currentLocation) {
+                setCurrentLocation(data.currentLocation);
+            }
+        });
+
+        // Listen for alerts
+        const alertsRef = ref(db, 'bus/alerts');
+        const unsubAlerts = onValue(alertsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data || isDriverRef.current) return;
+            setAlerts(data);
+        });
 
         return () => {
-            window.removeEventListener('storage', handleStorageChange);
+            unsubStatus();
+            unsubAlerts();
         };
     }, []);
 
-    // Add alert function
+    // Add alert
     const addAlert = useCallback((message, type = "info") => {
         const newAlert = {
             id: Date.now(),
@@ -92,24 +84,14 @@ export const BusProvider = ({ children }) => {
         };
         setAlerts((prev) => {
             const newAlerts = [newAlert, ...prev];
-            // Broadcast alerts to other tabs
-            broadcastState({ alerts: newAlerts });
+            syncAlertsToFirebase(newAlerts);
             return newAlerts;
         });
-    }, [broadcastState]);
+    }, [syncAlertsToFirebase]);
 
-    // Sync state changes to other tabs
-    const syncStateToTabs = useCallback((newIsSharing, newBusStatus, newLocation) => {
-        broadcastState({
-            isSharing: newIsSharing,
-            busStatus: newBusStatus,
-            currentLocation: newLocation
-        });
-    }, [broadcastState]);
-
-    // Request location permission and start GPS tracking
+    // Request GPS and start trip
     const requestLocationAndStartTrip = async () => {
-        isDriverRef.current = true; // Mark this tab as driver
+        isDriverRef.current = true;
 
         if (!navigator.geolocation) {
             setLocationPermission("denied");
@@ -137,12 +119,10 @@ export const BusProvider = ({ children }) => {
             setCurrentLocation(initialLocation);
             setIsSharing(true);
             setBusStatus("Moving");
-
-            // Sync to other tabs
-            syncStateToTabs(true, "Moving", initialLocation);
+            syncToFirebase({ isSharing: true, busStatus: "Moving", currentLocation: initialLocation });
             addAlert("Live location sharing started", "success");
 
-            // Start watching position
+            // Watch position continuously
             watchIdRef.current = navigator.geolocation.watchPosition(
                 (pos) => {
                     const newLocation = {
@@ -152,8 +132,7 @@ export const BusProvider = ({ children }) => {
                         accuracy: pos.coords.accuracy
                     };
                     setCurrentLocation(newLocation);
-                    // Sync location to other tabs
-                    syncStateToTabs(true, "Moving", newLocation);
+                    syncToFirebase({ isSharing: true, busStatus: "Moving", currentLocation: newLocation });
                 },
                 (error) => {
                     console.error("GPS Error:", error);
@@ -173,7 +152,7 @@ export const BusProvider = ({ children }) => {
         }
     };
 
-    // Start simulated trip
+    // Simulated trip fallback
     const startSimulatedTrip = () => {
         isDriverRef.current = true;
         routeIndexRef.current = 0;
@@ -181,7 +160,7 @@ export const BusProvider = ({ children }) => {
         setCurrentLocation(initialLocation);
         setIsSharing(true);
         setBusStatus("Moving");
-        syncStateToTabs(true, "Moving", initialLocation);
+        syncToFirebase({ isSharing: true, busStatus: "Moving", currentLocation: initialLocation });
         addAlert("Bus trip started (simulated route)", "info");
     };
 
@@ -194,9 +173,10 @@ export const BusProvider = ({ children }) => {
                 routeIndexRef.current += 1;
 
                 if (routeIndexRef.current >= BUS_ROUTE.length) {
+                    const finalLocation = BUS_ROUTE[BUS_ROUTE.length - 1];
                     setBusStatus("Reached School");
                     setIsSharing(false);
-                    syncStateToTabs(false, "Reached School", BUS_ROUTE[BUS_ROUTE.length - 1]);
+                    syncToFirebase({ isSharing: false, busStatus: "Reached School", currentLocation: finalLocation });
                     addAlert("Bus reached destination", "success");
                     routeIndexRef.current = 0;
                     return;
@@ -204,21 +184,19 @@ export const BusProvider = ({ children }) => {
 
                 const newLocation = BUS_ROUTE[routeIndexRef.current];
                 setCurrentLocation(newLocation);
-                syncStateToTabs(true, "Moving", newLocation);
+                syncToFirebase({ isSharing: true, busStatus: "Moving", currentLocation: newLocation });
             }, 3000);
         }
 
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [isSharing, busStatus, locationPermission, syncStateToTabs, addAlert]);
+    }, [isSharing, busStatus, locationPermission, syncToFirebase, addAlert]);
 
-    // Start trip
     const startTrip = async () => {
         await requestLocationAndStartTrip();
     };
 
-    // Stop trip
     const stopTrip = () => {
         setIsSharing(false);
         setBusStatus("Stopped");
@@ -228,7 +206,7 @@ export const BusProvider = ({ children }) => {
             watchIdRef.current = null;
         }
 
-        syncStateToTabs(false, "Stopped", currentLocation);
+        syncToFirebase({ isSharing: false, busStatus: "Stopped", currentLocation });
         addAlert("Location sharing stopped", "warning");
     };
 
@@ -237,11 +215,11 @@ export const BusProvider = ({ children }) => {
         if (isSOS) {
             const newStatus = isSharing ? "Moving" : "Stopped";
             setBusStatus(newStatus);
-            syncStateToTabs(isSharing, newStatus, currentLocation);
+            syncToFirebase({ isSharing, busStatus: newStatus, currentLocation });
             addAlert("SOS Cancelled", "info");
         } else {
             setBusStatus("SOS");
-            syncStateToTabs(isSharing, "SOS", currentLocation);
+            syncToFirebase({ isSharing, busStatus: "SOS", currentLocation });
             addAlert("SOS Alert Triggered!", "danger");
         }
     };
