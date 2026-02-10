@@ -1657,6 +1657,20 @@ button {
   color: var(--primary);
 }
 
+.info-item.live-indicator {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.info-item.live-indicator svg {
+  color: var(--success);
+  animation: pulse-icon 1.5s ease-in-out infinite;
+}
+
 /* Main Action Container */
 .driver-action-container {
   display: flex;
@@ -1832,4 +1846,129 @@ button {
   color: #94A3B8;
   font-size: 0.75rem;
   text-align: center;
+}
+
+/* === LOCATION PERMISSION CARD === */
+.location-permission-card {
+  width: 100%;
+  background: white;
+  border: 1px solid #E2E8F0;
+}
+
+.permission-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #E2E8F0;
+  margin-bottom: 1rem;
+}
+
+.permission-header svg {
+  color: var(--primary);
+}
+
+.permission-title {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.permission-content {
+  text-align: center;
+}
+
+.permission-text {
+  color: #64748B;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.permission-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.permission-btn-retry {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.permission-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.permission-granted .permission-status {
+  color: var(--success);
+}
+
+.permission-denied .permission-status {
+  color: var(--danger);
+}
+
+.permission-mode {
+  font-size: 0.813rem;
+  color: #64748B;
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+/* Location sharing indicator on map */
+.location-sharing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.location-sharing-indicator.offline {
+  background: linear-gradient(135deg, #64748B 0%, #475569 100%);
+  box-shadow: 0 4px 12px rgba(100, 116, 139, 0.3);
+}
+
+.location-sharing-indicator svg {
+  animation: pulse-icon 2s ease-in-out infinite;
+}
+
+.location-not-available {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: #64748B;
+}
+
+.location-not-available svg {
+  color: #CBD5E1;
+  margin-bottom: 1rem;
+}
+
+.location-not-available p {
+  font-size: 0.875rem;
+  max-width: 280px;
 }

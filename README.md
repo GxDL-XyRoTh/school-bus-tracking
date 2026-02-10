@@ -5,7 +5,8 @@ A premium, role-based real-time school bus tracking application.
 ## Features
 
 - **Role-Based Access**: Specialized panels for Parents, Drivers, and Admins.
-- **Real-Time Tracking**: Live map visualization of bus location (simulated).
+- **Live GPS Tracking**: Real-time location sharing from driver's device to parents/admin.
+- **Cross-Tab Sync**: Instant updates across browser tabs for demo purposes.
 - **Alerts System**: Instant notifications for delays, arrival, and emergencies.
 - **Driver Console**: Simple "Start/Stop" trip buttons and SOS feature.
 - **Parent Tools**: Fee payments and complaint submission.
