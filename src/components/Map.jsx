@@ -1,6 +1,6 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import L from 'leaflet';
 
 // Fix for default markers in React Leaflet
@@ -16,24 +16,43 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// This component handles panning the map when the position changes
 function MapUpdater({ center }) {
     const map = useMap();
     useEffect(() => {
-        map.flyTo(center, 16, {
-            animate: true,
-            duration: 1.5
-        });
-    }, [center, map]);
+        if (center && center[0] && center[1]) {
+            map.flyTo(center, map.getZoom(), {
+                animate: true,
+                duration: 1.5
+            });
+        }
+    }, [center[0], center[1], map]);
     return null;
 }
 
-export default function Map({ position }) {
-    // position is { lat, lng } or [lat, lng]
-    // Ensure we handle both if possible, or stick to object
-    const lat = position.lat || position[0];
-    const lng = position.lng || position[1];
+// This component handles updating the marker position reactively
+function DraggableMarker({ position, label }) {
+    const markerPosition = useMemo(() => {
+        return [position[0], position[1]];
+    }, [position[0], position[1]]);
 
-    // Default fallback
+    return (
+        <Marker position={markerPosition}>
+            <Popup>
+                <div style={{ textAlign: 'center' }}>
+                    <strong>School Bus</strong><br />
+                    {label || 'Live Location'}
+                </div>
+            </Popup>
+        </Marker>
+    );
+}
+
+export default function Map({ position }) {
+    const lat = position?.lat || position?.[0];
+    const lng = position?.lng || position?.[1];
+    const label = position?.label || 'Live Location';
+
     if (!lat || !lng) return <div>Loading Map...</div>;
 
     const center = [lat, lng];
@@ -45,14 +64,7 @@ export default function Map({ position }) {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <Marker position={center}>
-                    <Popup>
-                        <div style={{ textAlign: 'center' }}>
-                            <strong>School Bus</strong><br />
-                            Live Location
-                        </div>
-                    </Popup>
-                </Marker>
+                <DraggableMarker position={center} label={label} />
                 <MapUpdater center={center} />
             </MapContainer>
         </div>
