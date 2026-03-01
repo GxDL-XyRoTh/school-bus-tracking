@@ -1,0 +1,186 @@
+SCHOOL BUS TRACKER - PROJECT DOCUMENTATION
+==========================================
+
+PART 1: EXAMINER WALKTHROUGH (HIGH-LEVEL ARCHITECTURE)
+======================================================
+
+1. Architecture Overview (React 19 + Vite)
+------------------------------------------
+This project is a Single Page Application (SPA) built with:
+- React 19: Utilizing modern hooks (useContext, useEffect, useCallback, useMemo) for efficient state management.
+- Vite: A next-generation build tool that provides instant server start and lightning-fast Hot Module Replacement (HMR).
+- Vanilla CSS (Premium Design System): Instead of a framework like Tailwind, we used custom CSS variables (in index.css) to create a unique Glassmorphism aesthetic. This demonstrates a deep understanding of CSS fundamentals:
+  - CSS Variables: --primary, --glass-bg, --glass-border for consistent theming.
+  - Flexbox/Grid: For responsive layouts.
+  - Backdrop Filter: backdrop-filter: blur(12px) creates the frosted glass effect.
+
+2. State Management & Logic
+---------------------------
+
+### AuthContext (src/context/AuthContext.jsx)
+- Role-Based Access Control (RBAC): Handled entirely on the frontend for the demo.
+- login(role) function:
+  - Takes a role string ('parent', 'driver', 'admin').
+  - Sets the `user` state with mock profile data specific to that role.
+  - Usage: const { user, login } = useAuth();
+
+### BusContext (src/context/BusContext.jsx)
+This is the core engine of the application. It manages the global state of the bus.
+- currentLocation: Stores { lat, lng } coordinates.
+- busStatus: Tracks state (Stopped, Moving, Reached, SOS).
+- isSharing: Boolean flag indicating if a trip is active.
+- Logic:
+  - Driver Side: When startTrip() is called:
+    1. It requests GPS Permission from the browser.
+    2. If granted, it starts navigator.geolocation.watchPosition().
+    3. On every GPS update, it calls syncToFirebase() to write the new coords to the Realtime Database.
+  - Parent/Admin Side: They don't track GPS. Instead, they listen to Firebase via onValue(). When the database changes, their local state updates instantly.
+
+3. Mapping Implementation (src/components/Map.jsx)
+--------------------------------------------------
+- Library: react-leaflet (wrapper around Leaflet.js).
+- Reactive Updates:
+  - The map component receives `position` as a prop.
+  - A custom `DraggableMarker` component uses `useMemo` to update the marker's position efficiently without re-rendering the entire map.
+  - A `MapUpdater` component (using `useMap`) smoothly pans (flyTo) the camera to follow the bus.
+- Custom Icons: We use custom Leaflet instructions to fix the default marker icon issue common in React environments.
+
+4. Data Flow (Mock Data)
+------------------------
+- src/data/mockData.js: Functions as a "local database".
+  - BUS_ROUTE: Array of lat/lng points used for the simulated route fallback (if GPS is denied).
+  - COMPLAINTS: JSON array of sample complaints displayed in the Admin Dashboard.
+  - STUDENTS: Sample student data for the Parent Dashboard.
+- Flow: Components import this data directly to render UI when no live data is available (e.g., complaint history).
+
+5. Key Components (Glassmorphism)
+---------------------------------
+- Card.jsx: The fundamental building block. It applies the glass effect:
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+- Button.jsx: A reusable component with variants (primary, danger, ghost) defined in CSS, ensuring consistent styling across the app.
+- Layout.jsx: Wraps pages (like Login) to provide the centered, glass-paneled container structure.
+
+6. Real-Time Sync & Simulation
+------------------------------
+- How it works:
+  1. Firebase: We act as a "Publisher/Subscriber" system.
+  2. Publisher (Driver): Pushes updates to bus/status path in Firebase.
+  3. Subscriber (Parent/Admin): The onValue listener in BusContext fires whenever data at that path changes.
+  4. Result: Changes reflect instantly (~200ms latency) across all open tabs/devices.
+- Fallback Simulation: If the Driver denies GPS, BusContext falls back to a setInterval loop that iterates through the BUS_ROUTE array, simulating movement point-by-point so the demo still works.
+
+
+==============================================================
+PART 2: DETAILED CODE EXPLANATION (TECHNICAL DEEP DIVE)
+==============================================================
+
+1. Core Logic: src/context/BusContext.jsx
+-----------------------------------------
+This file is the "brain" of the application. It handles GPS tracking, Firebase synchronization, and state management.
+
+### Key Sections Explained
+
+**1. Firebase & State Setup**
+const BUS_REF = 'bus/status'; // The path in Firebase Realtime Database
+const [isSharing, setIsSharing] = useState(false); // Is the trip active?
+const [currentLocation, setCurrentLocation] = useState(BUS_ROUTE[0]); // Current lat/lng
+const isDriverRef = useRef(false); // CRITICAL: Distinguishes Driver tab from Parent tab
+
+* Why useRef for isDriverRef?
+  State updates (useState) exist in *every* tab. We need a way to say "This specific tab is the Driver" without that information leaking to other tabs via Firebase. useRef keeps a value that persists across renders but is local to the component instance.
+
+**2. Writing to Firebase (Driver Logic)**
+const syncToFirebase = useCallback((data) => {
+    const busRef = ref(db, BUS_REF);
+    set(busRef, {
+        // ... data ...
+        lastUpdated: Date.now()
+    });
+}, []);
+
+* Technical Detail: We use set() to *overwrite* the data at bus/status. This is efficient for real-time tracking where we only care about the *latest* position, not a history of previous positions (which would use push()).
+
+**3. Listening to Firebase (Parent Logic)**
+useEffect(() => {
+    const busRef = ref(db, BUS_REF);
+    const unsubStatus = onValue(busRef, (snapshot) => {
+        const data = snapshot.val();
+        if (!data || isDriverRef.current) return; // Driver ignores their own echoes
+
+        // Update local state to match Firebase
+        setIsSharing(data.isSharing);
+        setCurrentLocation(data.currentLocation);
+    });
+    // ... cleanup
+}, []);
+
+* How it works: onValue opens a WebSocket connection to Firebase. Whenever the data changes on the server, this callback fires immediately.
+* Why `if (isDriverRef.current) return`? This prevents an infinite loop or "echo" where the driver receives their own update and triggers a re-render unnecessarily.
+
+**4. GPS Tracking (The "Start Trip" Button)**
+const requestLocationAndStartTrip = async () => {
+    isDriverRef.current = true; // Mark this tab as the "Source of Truth"
+    
+    // 1. Get initial fix
+    navigator.geolocation.getCurrentPosition(...)
+    
+    // 2. Start continuous watching
+    watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+            // New GPS point received!
+            const newLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setCurrentLocation(newLocation); // Update local UI
+            syncToFirebase({ ... }); // Send to cloud
+        },
+        // ... options (High Accuracy enabled)
+    );
+};
+
+* watchPosition vs getCurrentPosition: getCurrentPosition fires once. watchPosition fires whenever the device moves, ensuring live tracking.
+
+
+2. Visualization: src/components/Map.jsx
+----------------------------------------
+This component renders the Leaflet map.
+
+### Key Sections Explained
+
+**1. Reactive Marker Updates (DraggableMarker)**
+function DraggableMarker({ position, label }) {
+    const markerPosition = useMemo(() => {
+        return [position.lat, position.lng];
+    }, [position.lat, position.lng]);
+
+    return <Marker position={markerPosition} ... />;
+}
+
+* Why useMemo? Optimization. It ensures we only recalculate the [lat, lng] array when the coordinates actually change, preventing unnecessary renders.
+
+**2. Smooth Animation (MapUpdater)**
+function MapUpdater({ center }) {
+    const map = useMap(); // Access Leaflet instance
+    useEffect(() => {
+        map.flyTo(center, map.getZoom(), { duration: 1.5 });
+    }, [center]);
+    return null;
+}
+
+* flyTo: This is a Leaflet method that smoothly pans and zooms the camera to the new point, creating the "following" effect.
+* Why a separate component? MapContainer props are immutable after mount. To control the map programmatically (like moving the camera), we need a child component that uses the useMap hook to get the map instance.
+
+
+3. Styling: Glassmorphism
+-------------------------
+The unique look comes from src/index.css & Card.jsx.
+
+**The Formula:**
+.card {
+    background: rgba(255, 255, 255, 0.7); /* Translucent white */
+    backdrop-filter: blur(12px);          /* Blurs content BEHIND the card */
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Semi-transparent border */
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15); /* Soft colored shadow */
+}
+
+* backdrop-filter: This is the key property. It applies a filter (blur) to the area *behind* the element, creating the frosted glass effect. It requires the background to be partially transparent (rgba alpha < 1).

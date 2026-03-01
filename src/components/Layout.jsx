@@ -1,6 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bus, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import Button from './Button';
 
 export default function Layout({ children }) {
@@ -28,9 +28,7 @@ export default function Layout({ children }) {
                         className="flex items-center gap-2 cursor-pointer"
                         onClick={() => navigate(user ? `/${user.role}` : '/')}
                     >
-                        <div className="bg-primary/10 p-2 rounded-lg text-primary">
-                            <Bus size={24} />
-                        </div>
+                        <img src="/app-logo.png" alt="School Bus Tracker Logo" className="w-10 h-10 object-contain rounded-lg drop-shadow-sm bg-white" />
                         <h1 className="text-xl font-bold text-slate-800">
                             School Bus Tracker
                         </h1>

@@ -11,9 +11,7 @@ export default function LandingPage() {
             <nav className="navbar">
                 <div className="container flex-between">
                     <div className="flex-center gap-2 logo-container">
-                        <div className="logo-icon">
-                            <Bus size={24} />
-                        </div>
+                        <img src="/app-logo.png" alt="Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
                         <span className="logo-text">School Bus Tracker</span>
                     </div>
                     <button
@@ -162,7 +160,7 @@ export default function LandingPage() {
             <footer className="landing-footer">
                 <div className="container flex-between">
                     <div className="footer-brand">
-                        <Bus size={24} />
+                        <img src="/app-logo.png" alt="Logo" style={{ width: '24px', height: '24px', borderRadius: '6px', objectFit: 'cover' }} />
                         <span>School Bus Tracker</span>
                     </div>
                     <p className="copyright">© 2026 School Bus Tracker. All rights reserved.</p>

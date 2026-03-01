@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, get } from 'firebase/database';
 import { db } from '../firebase';
 import { BUS_ROUTE, INITIAL_ALERTS } from '../data/mockData';
 
@@ -12,64 +12,88 @@ export const BusProvider = ({ children }) => {
     const [currentLocation, setCurrentLocation] = useState(BUS_ROUTE[0]);
     const [alerts, setAlerts] = useState(INITIAL_ALERTS);
     const [busStatus, setBusStatus] = useState("Stopped");
+    const [firebaseConnected, setFirebaseConnected] = useState(false);
 
     const [locationPermission, setLocationPermission] = useState("pending");
     const watchIdRef = useRef(null);
     const routeIndexRef = useRef(0);
-    // isDriver is set ONLY when the driver clicks "Start Trip"
-    // It stays false for all parent/admin sessions
     const isDriverRef = useRef(false);
+
+    // Test Firebase connection on mount
+    useEffect(() => {
+        const testRef = ref(db, 'bus/ping');
+        set(testRef, { timestamp: Date.now(), test: true })
+            .then(() => {
+                console.log('[BusTracker] Firebase connected successfully');
+                setFirebaseConnected(true);
+            })
+            .catch((err) => {
+                console.error('[BusTracker] Firebase connection failed:', err);
+                setFirebaseConnected(false);
+            });
+    }, []);
 
     // Write state to Firebase (Driver only)
     const syncToFirebase = useCallback((data) => {
-        try {
-            const busRef = ref(db, BUS_REF);
-            set(busRef, {
-                isSharing: data.isSharing,
-                busStatus: data.busStatus,
-                currentLocation: {
-                    lat: data.currentLocation.lat,
-                    lng: data.currentLocation.lng,
-                    label: data.currentLocation.label || "Live Location"
-                },
-                lastUpdated: Date.now()
+        const busRef = ref(db, BUS_REF);
+        set(busRef, {
+            isSharing: data.isSharing,
+            busStatus: data.busStatus,
+            currentLocation: {
+                lat: data.currentLocation.lat,
+                lng: data.currentLocation.lng,
+                label: data.currentLocation.label || "Live Location"
+            },
+            lastUpdated: Date.now()
+        })
+            .then(() => {
+                console.log('[BusTracker] Synced to Firebase:', data.busStatus, data.currentLocation.lat, data.currentLocation.lng);
+            })
+            .catch((err) => {
+                console.error('[BusTracker] Firebase write FAILED:', err);
             });
-        } catch (e) {
-            console.error('Firebase write error:', e);
-        }
     }, []);
 
     // Write alerts separately
     const syncAlertsToFirebase = useCallback((alertsList) => {
-        try {
-            const alertsRef = ref(db, 'bus/alerts');
-            set(alertsRef, alertsList.slice(0, 20));
-        } catch (e) {
-            console.error('Firebase alerts write error:', e);
-        }
+        const alertsRef = ref(db, 'bus/alerts');
+        set(alertsRef, alertsList.slice(0, 20))
+            .catch((err) => console.error('[BusTracker] Alerts write failed:', err));
     }, []);
 
-    // Listen to Firebase for real-time updates (ALL users)
-    // Driver tab ignores these because isDriverRef is true
+    // Listen to Firebase for real-time updates (Parent/Admin only)
     useEffect(() => {
+        console.log('[BusTracker] Setting up Firebase listeners...');
+
         const busRef = ref(db, BUS_REF);
         const unsubStatus = onValue(busRef, (snapshot) => {
             const data = snapshot.val();
-            if (!data) return;
+            console.log('[BusTracker] Firebase data received:', data);
 
-            // Skip if this is the driver tab (driver manages its own state)
-            if (isDriverRef.current) return;
+            if (!data) {
+                console.log('[BusTracker] No data in Firebase yet');
+                return;
+            }
 
-            // Update Parent/Admin state from Firebase
-            if (data.isSharing !== undefined) setIsSharing(data.isSharing);
-            if (data.busStatus) setBusStatus(data.busStatus);
+            // Skip if this tab is the driver (driver manages own state)
+            if (isDriverRef.current) {
+                console.log('[BusTracker] Skipping update (this is driver tab)');
+                return;
+            }
+
+            // Update state from Firebase
+            setIsSharing(data.isSharing ?? false);
+            setBusStatus(data.busStatus ?? "Stopped");
             if (data.currentLocation && data.currentLocation.lat && data.currentLocation.lng) {
+                console.log('[BusTracker] Updating location:', data.currentLocation.lat, data.currentLocation.lng);
                 setCurrentLocation({
                     lat: data.currentLocation.lat,
                     lng: data.currentLocation.lng,
                     label: data.currentLocation.label || "Live Location"
                 });
             }
+        }, (error) => {
+            console.error('[BusTracker] Firebase listener error:', error);
         });
 
         const alertsRef = ref(db, 'bus/alerts');
@@ -78,9 +102,10 @@ export const BusProvider = ({ children }) => {
             if (!data) return;
             if (isDriverRef.current) return;
 
-            // Convert Firebase object back to array if needed
             const alertsArray = Array.isArray(data) ? data : Object.values(data);
             setAlerts(alertsArray);
+        }, (error) => {
+            console.error('[BusTracker] Alerts listener error:', error);
         });
 
         return () => {
@@ -108,6 +133,7 @@ export const BusProvider = ({ children }) => {
     // Request GPS and start trip
     const requestLocationAndStartTrip = async () => {
         isDriverRef.current = true;
+        console.log('[BusTracker] Driver starting trip, isDriver=true');
 
         if (!navigator.geolocation) {
             setLocationPermission("denied");
@@ -132,6 +158,7 @@ export const BusProvider = ({ children }) => {
                 lng: position.coords.longitude,
                 label: "Live Location"
             };
+            console.log('[BusTracker] GPS position:', initialLocation.lat, initialLocation.lng);
             setCurrentLocation(initialLocation);
             setIsSharing(true);
             setBusStatus("Moving");
@@ -146,11 +173,12 @@ export const BusProvider = ({ children }) => {
                         label: "Live Location",
                         accuracy: pos.coords.accuracy
                     };
+                    console.log('[BusTracker] GPS update:', newLocation.lat, newLocation.lng);
                     setCurrentLocation(newLocation);
                     syncToFirebase({ isSharing: true, busStatus: "Moving", currentLocation: newLocation });
                 },
                 (error) => {
-                    console.error("GPS Error:", error);
+                    console.error("[BusTracker] GPS Error:", error);
                     addAlert("GPS signal lost", "warning");
                 },
                 {
@@ -161,6 +189,7 @@ export const BusProvider = ({ children }) => {
             );
 
         } catch (error) {
+            console.error('[BusTracker] GPS permission denied:', error);
             setLocationPermission("denied");
             addAlert("Location access denied. Using simulated route.", "warning");
             startSimulatedTrip();
@@ -244,6 +273,7 @@ export const BusProvider = ({ children }) => {
             busStatus,
             alerts,
             locationPermission,
+            firebaseConnected,
             startTrip,
             stopTrip,
             toggleSOS,
