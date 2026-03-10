@@ -103,15 +103,7 @@ export default function AdminDashboard() {
                         </div>
                     </Card>
 
-                    <Card>
-                        <h3 className="font-bold mb-4 text-lg border-b pb-2">Quick Actions</h3>
-                        <div className="flex-col gap-2">
-                            <Button variant="ghost" className="justify-start text-sm w-full hover:bg-slate-50 border border-transparent hover:border-slate-200 rounded-lg p-3 text-slate-600">Manage Routes</Button>
-                            <Button variant="ghost" className="justify-start text-sm w-full hover:bg-slate-50 border border-transparent hover:border-slate-200 rounded-lg p-3 text-slate-600">Manage Drivers</Button>
-                            <Button variant="ghost" className="justify-start text-sm w-full hover:bg-slate-50 border border-transparent hover:border-slate-200 rounded-lg p-3 text-slate-600">View Payments</Button>
-                            <Button variant="ghost" className="justify-start text-sm w-full hover:bg-red-50 text-red-600 border border-transparent hover:border-red-100 rounded-lg p-3">System Settings</Button>
-                        </div>
-                    </Card>
+
                 </div>
             </div>
         </div>
